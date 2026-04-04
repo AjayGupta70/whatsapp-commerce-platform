@@ -1,0 +1,69 @@
+// ============================================
+// Main App Module
+// ============================================
+
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
+import configuration from './config/configuration';
+
+// ─── Logging ──────────────────────────────
+import { CommonLoggerModule } from './common/logger/logger.module';
+
+// ─── Database Modules ──────────────────────
+import { MongoDBModule } from './database/mongodb/mongodb.module';
+import { PrismaModule } from './database/postgres/prisma/prisma.module';
+
+// ─── Feature Modules ────────────────────────
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { RabbitMQModule } from './microservices/rabbitmq-service/rabbitmq.module';
+import { AIModule } from './modules/ai/ai.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
+import { UsersModule } from './modules/users/users.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { ContactModule } from './modules/contact/contact.module';
+import { CampaignModule } from './modules/campaign/campaign.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+
+@Module({
+  imports: [
+    // Global Config
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+    }),
+
+    // Rate Limiting
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
+
+    // Logging
+    CommonLoggerModule,
+
+    // Central Databases
+    PrismaModule,
+    MongoDBModule,
+
+    // Business Modules
+    TenantsModule,
+    UsersModule,
+    CatalogModule,
+    InventoryModule,
+    ContactModule,
+    CampaignModule,
+    OrdersModule,
+    PaymentsModule,
+    AIModule,
+    WhatsappModule,
+    AuthModule,
+    RabbitMQModule,
+  ],
+})
+export class AppModule {}

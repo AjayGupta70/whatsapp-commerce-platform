@@ -1,0 +1,35 @@
+﻿Prisma schema loaded from src\database\postgres\prisma\schema.prisma
+node.exe : Error: 
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Error: :Strin   
+ g) [], RemoteExcep    
+tion
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+Cannot find module 
+'C:\Users\Ajay Gupta\wh
+atsapp-automation\node_
+modules\@prisma\client\
+runtime\query_engine_bg
+.postgresql.wasm-base64
+.js'
+Require stack:
+- C:\Users\Ajay Gupta\w
+hatsapp-automation\node
+_modules\prisma\build\i
+ndex.js
+
+

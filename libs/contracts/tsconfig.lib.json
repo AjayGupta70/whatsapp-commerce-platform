@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist/libs/contracts",
+    "declaration": true,
+    "types": []
+  },
+  "include": ["src/**/*"]
+}

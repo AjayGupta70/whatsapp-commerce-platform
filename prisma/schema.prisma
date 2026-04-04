@@ -1,0 +1,336 @@
+// ============================================
+// Prisma Schema — PostgreSQL
+// Users, Tenants, Orders, Payments, Catalog, Inventory, Campaigns, Contacts
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenant (Multi-tenant) ──────────────────
+
+model Tenant {
+  id             String    @id @default(uuid())
+  name           String
+  slug           String    @unique
+  type           StoreType @default(GENERIC)
+  whatsappNumber String?
+  email          String?
+  logo           String?
+  address        String?
+  razorpayKeyId  String?   @map("razorpay_key_id")
+  razorpaySecret String?   @map("razorpay_secret")
+  webhookSecret  String?   @map("webhook_secret")
+  settings       Json?     @default("{}")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  users          User[]
+  products       Product[]
+  categories     Category[]
+  inventoryItems Inventory[]
+  orders         Order[]
+  payments       Payment[]
+  contacts       Contact[]
+  campaigns      Campaign[]
+
+  @@map("tenants")
+}
+
+enum StoreType {
+  RESTAURANT
+  GROCERY
+  PHARMACY
+  ECOMMERCE
+  GENERIC
+}
+
+// ─── User / Customer ────────────────────────
+
+model User {
+  id        String    @id @default(uuid())
+  phone     String
+  name      String?
+  email     String?
+  avatar    String?
+  role      UserRole  @default(CUSTOMER)
+  isActive  Boolean   @default(true) @map("is_active")
+  lastSeen  DateTime? @map("last_seen")
+  metadata  Json?     @default("{}")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  orders   Order[]
+  payments Payment[]
+
+  @@unique([phone, tenantId])
+  @@index([tenantId])
+  @@map("users")
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPER_ADMIN
+}
+
+// ─── Contact ────────────────────────────────
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String?
+  phone     String
+  metadata  Json?    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  campaignLogs CampaignLog[]
+
+  @@unique([phone, tenantId])
+  @@index([tenantId])
+  @@map("contacts")
+}
+
+// ─── Campaign ───────────────────────────────
+
+model Campaign {
+  id          String         @id @default(uuid())
+  name        String
+  message     String
+  type        CampaignType   @default(PROMOTIONAL)
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?      @map("scheduled_at")
+  metadata    Json?          @default("{}")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  logs CampaignLog[]
+
+  @@map("campaigns")
+}
+
+enum CampaignType {
+  PROMOTIONAL
+  TRANSACTIONAL
+  INFORMATIONAL
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+// ─── Campaign Log ───────────────────────────
+
+model CampaignLog {
+  id       String            @id @default(uuid())
+  status   CampaignLogStatus @default(PENDING)
+  sentAt   DateTime?         @map("sent_at")
+  error    String?
+  metadata Json?             @default("{}")
+
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  contactId String  @map("contact_id")
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([contactId])
+  @@map("campaign_logs")
+}
+
+enum CampaignLogStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+// ─── Category ───────────────────────────────
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String
+  description String?
+  icon        String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  products Product[]
+
+  @@unique([slug, tenantId])
+  @@index([tenantId])
+  @@map("categories")
+}
+
+// ─── Product / Catalog ──────────────────────
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  metadata    Json?    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  categoryId String   @map("category_id")
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  inventory  Inventory?
+  orderItems OrderItem[]
+
+  @@unique([slug, tenantId])
+  @@index([tenantId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+// ─── Inventory ──────────────────────────────
+
+model Inventory {
+  id                String   @id @default(uuid())
+  stock             Int      @default(0)
+  reservedStock     Int      @default(0) @map("reserved_stock")
+  lowStockThreshold Int      @default(5) @map("low_stock_threshold")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  productId String  @unique @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("inventory")
+}
+
+// ─── Order ──────────────────────────────────
+
+model Order {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique @map("order_number")
+  status      OrderStatus @default(CREATED)
+  subtotal    Decimal     @default(0) @db.Decimal(10, 2)
+  tax         Decimal     @default(0) @db.Decimal(10, 2)
+  total       Decimal     @default(0) @db.Decimal(10, 2)
+  notes       String?
+  metadata    Json?       @default("{}")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  items   OrderItem[]
+  payment Payment?
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  CREATED
+  PAYMENT_PENDING
+  PAID
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+// ─── Order Item ─────────────────────────────
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  quantity   Int
+  unitPrice  Decimal  @map("unit_price") @db.Decimal(10, 2)
+  totalPrice Decimal  @map("total_price") @db.Decimal(10, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ─── Payment ────────────────────────────────
+
+model Payment {
+  id                String        @id @default(uuid())
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  provider          String        @default("razorpay")
+  providerPaymentId String?       @map("provider_payment_id")
+  paymentLink       String?       @map("payment_link")
+  paidAt            DateTime?     @map("paid_at")
+  metadata          Json?         @default("{}")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  orderId String @unique @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([providerPaymentId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
