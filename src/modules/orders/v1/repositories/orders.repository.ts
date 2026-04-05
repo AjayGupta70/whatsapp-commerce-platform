@@ -57,4 +57,27 @@ export class OrdersRepository {
       include: { items: true, payment: true },
     });
   }
+
+  async findByUserId(userId: string): Promise<Order[]> {
+    return this.prisma.order.findMany({
+      where: { userId },
+      include: { items: true, payment: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findByIdAndUser(orderId: string, userId: string): Promise<Order | null> {
+    return this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: { items: true, payment: true },
+    });
+  }
+
+  async findByTenantId(tenantId: string): Promise<Order[]> {
+    return this.prisma.order.findMany({
+      where: { tenantId },
+      include: { items: true, payment: true, user: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

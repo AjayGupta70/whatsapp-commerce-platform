@@ -63,4 +63,16 @@ export class OrdersService {
   async getOrderByNumber(orderNumber: string) {
     return this.ordersRepo.findByOrderNumber(orderNumber);
   }
+
+  async getOrdersByUser(userId: string) {
+    return this.ordersRepo.findByUserId(userId);
+  }
+
+  async getOrderByIdAndUser(orderId: string, userId: string) {
+    return this.ordersRepo.findByIdAndUser(orderId, userId);
+  }
+
+  async getOrdersByTenant(tenantId: string) {
+    return this.ordersRepo.findByTenantId(tenantId);
+  }
 }

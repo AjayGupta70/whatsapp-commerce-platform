@@ -13,6 +13,7 @@ import { CommonLoggerModule } from './common/logger/logger.module';
 // ─── Database Modules ──────────────────────
 import { MongoDBModule } from './database/mongodb/mongodb.module';
 import { PrismaModule } from './database/postgres/prisma/prisma.module';
+import { RedisModule } from './modules/database/redis/redis.module';
 
 // ─── Feature Modules ────────────────────────
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
@@ -50,6 +51,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     // Central Databases
     PrismaModule,
     MongoDBModule,
+    RedisModule,
 
     // Business Modules
     TenantsModule,

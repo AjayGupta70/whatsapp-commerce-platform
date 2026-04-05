@@ -32,10 +32,21 @@ export class TenantsRepository {
   }
 
   /**
-   * List all tenants
+   * List all tenants with simple pagination
    */
-  async findAll(): Promise<Tenant[]> {
-    return this.prisma.tenant.findMany({ where: { isActive: true } });
+  async findAll(skip?: number, take?: number): Promise<Tenant[]> {
+    return this.prisma.tenant.findMany({
+      where: { isActive: true },
+      skip: skip ? Number(skip) : undefined,
+      take: take ? Number(take) : undefined,
+    });
+  }
+
+  /**
+   * Count all active tenants for pagination metadata
+   */
+  async countAll(): Promise<number> {
+    return this.prisma.tenant.count({ where: { isActive: true } });
   }
 
   /**
@@ -43,5 +54,16 @@ export class TenantsRepository {
    */
   async update(id: string, data: Prisma.TenantUpdateInput): Promise<Tenant> {
     return this.prisma.tenant.update({ where: { id }, data });
+  }
+
+  /**
+   * Soft Delete or Hard Delete tenant
+   */
+  async delete(id: string): Promise<Tenant> {
+    // Soft delete is common practice in production multitenancy
+    return this.prisma.tenant.update({
+      where: { id },
+      data: { isActive: false },
+    });
   }
 }

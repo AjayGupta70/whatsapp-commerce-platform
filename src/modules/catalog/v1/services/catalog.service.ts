@@ -14,26 +14,35 @@ export class CatalogService {
    */
   async getFormattedMenu(tenantId: string): Promise<string> {
     const products = await this.catalogRepo.findProductsByTenant(tenantId);
-    if (!products.length) return "Our menu is currently empty. Please check back later! 😊";
+    if (!products.length) return "👋 Welcome! Our menu is currently being updated. Please check back soon! 😊";
 
+    // Group products by category
     const grouped = products.reduce((acc, p) => {
-      const catName = p.category?.name || 'Other';
+      const catName = p.category?.name || 'Other Items';
       if (!acc[catName]) acc[catName] = [];
       acc[catName].push(p);
       return acc;
     }, {});
 
-    let menu = "Here's our menu 🍽️\n\n";
+    let menu = "🌟 *WELCOME TO OUR MENU* 🌟\n\n";
+    
     for (const [category, items] of Object.entries(grouped)) {
-      menu += `*${category.toUpperCase()}*\n`;
+      menu += `⭐ *${category.toUpperCase()}*\n`;
       (items as any[]).forEach(item => {
-        const stockInfo = item.inventory?.stock > 0 ? `(₹${item.price})` : "(Out of stock)";
-        menu += `- ${item.name} ${stockInfo}\n`;
+        const isOutOfStock = item.inventory?.stock <= 0;
+        const priceTag = isOutOfStock ? "_[Out of Stock]_" : `*₹${item.price}*`;
+        menu += `• ${item.name} — ${priceTag}\n`;
+        if (item.description) {
+          menu += `  _${item.description}_\n`;
+        }
       });
       menu += "\n";
     }
 
-    menu += "What would you like to order? 😊";
+    menu += "━━━━━━━━━━━━━━━\n";
+    menu += "💬 *Simply reply with your order!*\n";
+    menu += "_Example: 'I want 2 Premium Cappuccinos'_";
+    
     return menu;
   }
 
