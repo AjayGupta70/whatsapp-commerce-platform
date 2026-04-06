@@ -53,6 +53,12 @@ enum StoreType {
   GENERIC
 }
 
+enum LoginMethod {
+  PASSWORD_ONLY
+  OTP_ONLY
+  PASSWORD_AND_OTP
+}
+
 // ─── User / Customer ────────────────────────
 
 model User {
@@ -61,6 +67,7 @@ model User {
   name      String?
   email     String?
   avatar    String?
+  password  String?   // bcrypt hashed, optional (passwordless flow)
   role      UserRole  @default(CUSTOMER)
   isActive  Boolean   @default(true) @map("is_active")
   lastSeen  DateTime? @map("last_seen")
@@ -71,8 +78,10 @@ model User {
   tenantId String @map("tenant_id")
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  orders   Order[]
-  payments Payment[]
+  orders        Order[]
+  payments      Payment[]
+  refreshTokens RefreshToken[]
+  settings      UserSettings?
 
   @@unique([phone, tenantId])
   @@index([tenantId])
@@ -83,6 +92,39 @@ enum UserRole {
   CUSTOMER
   ADMIN
   SUPER_ADMIN
+}
+
+// ─── Refresh Token ───────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  ipAddress String?  @map("ip_address")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── User Settings ───────────────────────────
+
+model UserSettings {
+  id          String      @id @default(uuid())
+  userId      String      @unique @map("user_id")
+  loginMethod LoginMethod @default(PASSWORD_AND_OTP) @map("login_method")
+  otpEnabled  Boolean     @default(true) @map("otp_enabled")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_settings")
 }
 
 // ─── Contact ────────────────────────────────

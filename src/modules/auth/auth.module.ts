@@ -1,5 +1,5 @@
 // ============================================
-// Auth Module — JWT + Mail-based OTP
+// Auth Module — JWT + Mail-based OTP + Password
 // ============================================
 
 import { Module } from '@nestjs/common';
@@ -12,11 +12,15 @@ import { JwtStrategy } from './guards/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { MailService } from './mail.service';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { PrismaModule } from '../../database/postgres/prisma/prisma.module';
+import { RedisModule } from '../database/redis/redis.module';
 
 @Module({
   imports: [
     UsersModule,
     WhatsappModule,
+    PrismaModule,
+    RedisModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

@@ -36,5 +36,6 @@ import { MessageQueueService } from './v1/services/message-queue.service';
   ],
   controllers: [WhatsappController],
   providers: [WhatsappService, BaileysClient, WhatsappGateway, MessageQueueService],
+  exports: [WhatsappService],
 })
 export class WhatsappModule {}
