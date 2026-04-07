@@ -2,7 +2,7 @@
 // WhatsApp Module
 // ============================================
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { WhatsappService } from './v1/services/whatsapp.service';
 import { WhatsappController } from './v1/controllers/whatsapp.controller';
 import { BaileysClient } from './v1/services/baileys.client';
@@ -18,7 +18,10 @@ import { OrdersModule } from '../orders/orders.module';
 import { AIModule } from '../ai/ai.module';
 import { CampaignModule } from '../campaign/campaign.module';
 import { ContactModule } from '../contact/contact.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { MessageQueueService } from './v1/services/message-queue.service';
+
+import { FlowHandlerService } from './v1/services/flow-handler.service';
 
 @Module({
   imports: [
@@ -33,9 +36,10 @@ import { MessageQueueService } from './v1/services/message-queue.service';
     AIModule,
     CampaignModule,
     ContactModule,
+    forwardRef(() => PaymentsModule),
   ],
   controllers: [WhatsappController],
-  providers: [WhatsappService, BaileysClient, WhatsappGateway, MessageQueueService],
+  providers: [WhatsappService, BaileysClient, WhatsappGateway, MessageQueueService, FlowHandlerService],
   exports: [WhatsappService],
 })
 export class WhatsappModule {}

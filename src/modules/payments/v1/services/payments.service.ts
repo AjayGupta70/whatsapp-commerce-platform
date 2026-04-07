@@ -6,8 +6,10 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@database/postgres/prisma/prisma.service';
 import { OrdersService } from '../../../orders/v1/services/orders.service';
+import { WhatsappService } from '../../../whatsapp/v1/services/whatsapp.service';
 import Razorpay from 'razorpay';
 import * as crypto from 'crypto';
+import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
 export class PaymentsService {
@@ -18,6 +20,8 @@ export class PaymentsService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly ordersService: OrdersService,
+    @Inject(forwardRef(() => WhatsappService))
+    private readonly whatsappService: WhatsappService,
   ) {
     this.razorpay = new Razorpay({
       key_id: this.configService.get('razorpay.keyId'),
@@ -49,7 +53,7 @@ export class PaymentsService {
       notify: { sms: true, email: true },
       reminder_enable: true,
       notes: { orderId: order.id, tenantId: order.tenantId },
-      callback_url: `https://yourdomain.com/payment-status?orderId=${order.id}`,
+      callback_url: `${this.configService.get('app.url')}/payment-status?orderId=${order.id}`,
       callback_method: 'get',
     });
 
@@ -66,6 +70,7 @@ export class PaymentsService {
       },
     });
 
+    this.logger.log(`Payment link created for order ${orderId}: ${paymentLink.short_url}`);
     return paymentLink.short_url;
   }
 
@@ -84,6 +89,7 @@ export class PaymentsService {
     }
 
     const event = JSON.parse(rawBody);
+    this.logger.log(`Received Razorpay webhook event: ${event.event}`);
     if (event.event === 'payment_link.paid') {
       const { orderId } = event.payload.payment_link.entity.notes;
       this.logger.log(`Payment successful for order ${orderId}`);
@@ -98,6 +104,25 @@ export class PaymentsService {
         where: { orderId },
         data: { status: 'SUCCESS', paidAt: new Date() },
       });
+
+      // --- NEW: Notify user on WhatsApp ---
+      try {
+        const orderWithUser = await this.prisma.order.findUnique({
+           where: { id: orderId },
+           include: { user: true }
+        });
+        
+        if (orderWithUser && orderWithUser.user.phone) {
+           await this.whatsappService.sendMessage({
+              phone: orderWithUser.user.phone,
+              messageType: 'text',
+              content: `✅ *Payment Received!*\n\nThank you for your payment for Order *#${orderWithUser.orderNumber}*.\n\nWe have started preparing your order and will notify you once it's ready for delivery! 🚚`,
+              tenantId: orderWithUser.tenantId
+           });
+        }
+      } catch (err) {
+        this.logger.error('Failed to send payment confirmation WhatsApp:', err);
+      }
     }
   }
 }

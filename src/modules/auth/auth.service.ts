@@ -136,6 +136,7 @@ export class AuthService {
       email: user.email,
       tenantId: user.tenantId,
       role: user.role,
+      tokenVersion: user.tokenVersion || 0,
     };
 
     const secret = this.configService.get<string>('jwt.secret') ?? 'fallback-secret';
@@ -167,6 +168,7 @@ export class AuthService {
 
   /** @deprecated Use generateTokenPair for new flows */
   async login(user: any) {
+    this.logger.log(`User ${user.id} logged in successfully via legacy flow.`);
     const tokens = await this.generateTokenPair(user);
     return {
       access_token: tokens.accessToken,
@@ -178,6 +180,7 @@ export class AuthService {
         tenantId: user.tenantId,
         role: user.role,
         name: user.name,
+        tokenVersion: user.tokenVersion || 0,
       },
     };
   }
@@ -250,6 +253,7 @@ export class AuthService {
     }
 
     // PASSWORD_ONLY
+    this.logger.log(`User ${user.id} authenticated successfully via password.`);
     return this.login(user);
   }
 
@@ -358,7 +362,7 @@ export class AuthService {
     return {
       message: 'Account created successfully.',
       ...tokens,
-      user: { id: user.id, phone: user.phone, name: user.name, role: user.role, tenantId: user.tenantId },
+      user: { id: user.id, phone: user.phone, name: user.name, role: user.role, tenantId: user.tenantId, tokenVersion: user.tokenVersion || 0 },
     };
   }
 
@@ -585,6 +589,7 @@ export class AuthService {
     const hashed = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.user.update({ where: { id: userId }, data: { password: hashed } });
 
+    this.logger.log(`User ${userId} changed their password.`);
     return { message: 'Password changed successfully.' };
   }
 
@@ -622,6 +627,7 @@ export class AuthService {
       await this.mailService.sendLoginCode(user.email, code, (user as any).name);
     }
 
+    this.logger.log(`Forgot password OTP initiated for ${normalized} (${provider})`);
     return { message: 'If an account exists, an OTP has been sent.' };
   }
 
@@ -671,6 +677,7 @@ export class AuthService {
     if (payload.purpose !== 'password_reset') {
       throw new BadRequestException('Invalid reset token.');
     }
+    this.logger.log(`User ${payload.sub} reset their password using a reset token.`);
     return this.setPassword(payload.sub, dto);
   }
 
@@ -703,7 +710,11 @@ export class AuthService {
     await this.prisma.refreshToken.delete({ where: { token: oldRefreshToken } });
 
     const tokens = await this.generateTokenPair(user);
-    return { message: 'Token refreshed.', ...tokens };
+    this.logger.log(`User ${user.id} refreshed their tokens.`);
+    return { 
+      message: 'Token refreshed.', 
+      ...tokens 
+    };
   }
 
   // ═══════════════════════════════════════════════
@@ -718,6 +729,7 @@ export class AuthService {
     } catch {
       // Token already gone — treat as success
     }
+    this.logger.log(`User ${userId} logged out.`);
     return { message: 'Logged out successfully.' };
   }
 
@@ -725,8 +737,17 @@ export class AuthService {
    * Logout from all devices — invalidates every refresh token for the user.
    */
   async logoutAllDevices(userId: string) {
+    // 1. Delete all refresh tokens
     await this.prisma.refreshToken.deleteMany({ where: { userId } });
-    return { message: 'Logged out from all devices.' };
+    
+    // 2. Increment token version in DB to invalidate all active access tokens
+    await this.prisma.user.update({
+       where: { id: userId },
+       data: { tokenVersion: { increment: 1 } }
+    });
+
+    this.logger.warn(`User ${userId} logged out from ALL devices.`);
+    return { message: 'Logged out from all devices. All existing sessions have been revoked.' };
   }
 
   // ═══════════════════════════════════════════════

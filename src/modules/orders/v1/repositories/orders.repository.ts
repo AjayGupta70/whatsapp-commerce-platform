@@ -4,7 +4,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@database/postgres/prisma/prisma.service';
-import { Order, OrderStatus, Prisma } from '@prisma/client';
+import { Order, OrderStatus, Prisma, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class OrdersRepository {
@@ -18,6 +18,8 @@ export class OrdersRepository {
     userId: string;
     orderNumber: string;
     total: number;
+    shippingAddress?: string;
+    paymentMethod?: PaymentMethod;
     items: { productId: string; quantity: number; unitPrice: number; totalPrice: number }[];
   }): Promise<Order> {
     return this.prisma.order.create({
@@ -26,7 +28,9 @@ export class OrdersRepository {
         userId: data.userId,
         orderNumber: data.orderNumber,
         total: data.total,
-        status: 'CREATED',
+        shippingAddress: data.shippingAddress,
+        paymentMethod: data.paymentMethod || 'ONLINE',
+        status: data.paymentMethod === 'OFFLINE' ? 'CONFIRMED' : 'CREATED',
         items: {
           create: data.items.map(i => ({
             productId: i.productId,

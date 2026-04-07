@@ -2,7 +2,7 @@
 // Users Service
 // ============================================
 
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { UsersRepository } from '../repositories/users.repository';
 import { User } from '@prisma/client';
 import { CreateUserDto } from '../dto/create-user.dto';
@@ -10,6 +10,7 @@ import { UpdateUserDto } from '../dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   constructor(private readonly usersRepo: UsersRepository) {}
 
   /**
@@ -19,11 +20,13 @@ export class UsersService {
     const user = await this.usersRepo.findByPhone(phone, tenantId);
     if (user) return user;
 
-    return this.usersRepo.create({
+    const newUser = await this.usersRepo.create({
       phone,
       tenant: { connect: { id: tenantId } },
       role: 'CUSTOMER',
     });
+    this.logger.log(`Created new customer: ${phone} for tenant ${tenantId}`);
+    return newUser;
   }
 
   async createUser(dto: CreateUserDto): Promise<User> {
@@ -33,7 +36,9 @@ export class UsersService {
     }
 
     // Typecast to any to satisfy Prisma input typing based on Json fields
-    return this.usersRepo.create(dto as any);
+    const user = await this.usersRepo.create(dto as any);
+    this.logger.log(`Created new user: ${user.phone} with role ${user.role}`);
+    return user;
   }
 
   async getAllUsers(tenantId: string, skip?: number, take?: number): Promise<{ data: User[]; total: number }> {

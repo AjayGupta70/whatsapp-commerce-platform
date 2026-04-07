@@ -28,8 +28,8 @@ async function bootstrap() {
     { bufferLogs: true },
   );
 
-  // app.useLogger(app.get(Logger));
-  // app.useGlobalInterceptors(new LoggerErrorInterceptor());
+  app.useLogger(app.get(Logger));
+  app.useGlobalInterceptors(new LoggerErrorInterceptor());
 
   // Enable WebSocket support
   app.useWebSocketAdapter(new IoAdapter(app.getHttpServer()));

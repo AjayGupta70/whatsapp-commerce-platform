@@ -19,7 +19,13 @@ export class OrdersService {
   /**
    * Place an order after stock validation
    */
-  async placeOrder(tenantId: string, userId: string, items: any[]): Promise<any> {
+  async placeOrder(
+    tenantId: string, 
+    userId: string, 
+    items: any[], 
+    shippingAddress?: string, 
+    paymentMethod?: any
+  ): Promise<any> {
     this.logger.log(`Placing order for tenant ${tenantId} and user ${userId}`);
 
     // 1. Validate stock for all items
@@ -40,6 +46,8 @@ export class OrdersService {
       userId,
       orderNumber,
       total,
+      shippingAddress,
+      paymentMethod,
       items: items.map(i => ({
         productId: i.id,
         quantity: i.quantity,
@@ -53,10 +61,12 @@ export class OrdersService {
       await this.inventoryService.deductStock(item.id, item.quantity);
     }
 
+    this.logger.log(`Order ${order.orderNumber} placed for user ${userId} on tenant ${tenantId}. Total: ${total}`);
     return order;
   }
 
   async updateOrderStatus(orderId: string, status: any): Promise<void> {
+    this.logger.log(`Updating order ${orderId} status to ${status}`);
     await this.ordersRepo.updateStatus(orderId, status);
   }
 

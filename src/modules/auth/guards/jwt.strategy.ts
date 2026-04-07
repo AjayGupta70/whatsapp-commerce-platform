@@ -24,6 +24,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     const user = await this.usersService.findById(payload.sub);
     if (!user) throw new UnauthorizedException('Invalid token');
+
+    // --- NEW: Token Revocation Check ---
+    // If the tokenVersion in the JWT doesn't match the one in DB, the token has been revoked.
+    if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+      throw new UnauthorizedException('Session expired or revoked. Please log in again.');
+    }
+
     return user;
   }
 }

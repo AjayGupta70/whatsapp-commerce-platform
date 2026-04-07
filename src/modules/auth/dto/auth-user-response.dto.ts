@@ -15,4 +15,7 @@ export class AuthUserResponseDto {
 
   @ApiProperty({ description: 'User role', example: 'CUSTOMER' })
   role: string;
+
+  @ApiProperty({ description: 'Current token version for revocation check', example: 0 })
+  tokenVersion: number;
 }

@@ -8,8 +8,10 @@ export default () => ({
     name: process.env.APP_NAME || 'whatsapp-automation',
     port: parseInt(process.env.APP_PORT || '3000', 10) || 3000,
     env: process.env.NODE_ENV || 'development',
+    apiKey: process.env.API_KEY || '',
     apiPrefix: process.env.API_PREFIX || 'api',
     apiVersion: process.env.API_VERSION || 'v1',
+    url: process.env.APP_URL || 'http://localhost:3000',
   },
 
   // MongoDB — Messages, Chats, Logs

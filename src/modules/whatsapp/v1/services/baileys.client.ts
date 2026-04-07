@@ -268,6 +268,15 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
     } else if (msg.message?.audioMessage) {
       messageType = 'audio';
       media = msg.message.audioMessage;
+    } else if (msg.message?.buttonsResponseMessage) {
+      messageType = 'button_response';
+      text = msg.message.buttonsResponseMessage.selectedButtonId || '';
+    } else if (msg.message?.listResponseMessage) {
+      messageType = 'list_response';
+      text = msg.message.listResponseMessage.singleSelectReply?.selectedRowId || '';
+    } else if (msg.message?.templateButtonReplyMessage) {
+      messageType = 'button_response';
+      text = msg.message.templateButtonReplyMessage.selectedId || '';
     }
 
     return {
@@ -367,9 +376,41 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Send interactive buttons message
+   * Send interactive buttons message (Max 3 buttons)
    */
-  async sendButtonsMessage(phone: string, text: string, buttons: any[]): Promise<string | null> {
+  async sendButtonsMessage(phone: string, text: string, buttons: { id: string, text: string }[], footer?: string): Promise<string | null> {
+    if (!this.sock || !this.isConnected) {
+      throw new Error('WhatsApp not connected');
+    }
+
+    try {
+      const jid = this.formatPhoneToJid(phone);
+
+      const buttonsPayload = buttons.map(b => ({
+        buttonId: b.id,
+        buttonText: { displayText: b.text },
+        type: 1
+      }));
+
+      const result = await this.sock.sendMessage(jid, {
+        text: text,
+        footer: footer,
+        buttons: buttonsPayload,
+        headerType: 1
+      } as any);
+
+      this.logger.log(`✅ Buttons message sent to ${phone}`);
+      return result?.key?.id || null;
+    } catch (error) {
+      this.logger.error(`❌ Failed to send buttons message to ${phone}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a List message (Interactive selection)
+   */
+  async sendListMessage(phone: string, title: string, text: string, buttonText: string, sections: any[], footer?: string): Promise<string | null> {
     if (!this.sock || !this.isConnected) {
       throw new Error('WhatsApp not connected');
     }
@@ -379,12 +420,16 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
 
       const result = await this.sock.sendMessage(jid, {
         text: text,
-      });
+        title: title,
+        buttonText: buttonText,
+        footer: footer,
+        sections: sections
+      } as any);
 
-      this.logger.log(`✅ Buttons message sent to ${phone}`);
+      this.logger.log(`✅ List message sent to ${phone}`);
       return result?.key?.id || null;
     } catch (error) {
-      this.logger.error(`❌ Failed to send buttons message to ${phone}:`, error);
+      this.logger.error(`❌ Failed to send list message to ${phone}:`, error);
       throw error;
     }
   }

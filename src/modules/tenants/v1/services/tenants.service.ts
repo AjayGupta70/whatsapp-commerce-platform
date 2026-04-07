@@ -2,7 +2,7 @@
 // Tenants Service
 // ============================================
 
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { TenantsRepository } from '../repositories/tenants.repository';
 import { Tenant } from '@prisma/client';
 import { CreateTenantDto } from '../dtos/create-tenant.dto';
@@ -10,6 +10,7 @@ import { UpdateTenantDto } from '../dtos/update-tenant.dto';
 
 @Injectable()
 export class TenantsService {
+  private readonly logger = new Logger(TenantsService.name);
   constructor(private readonly tenantsRepo: TenantsRepository) {}
 
   async getTenantBySlug(slug: string): Promise<Tenant> {
@@ -41,13 +42,17 @@ export class TenantsService {
       throw new ConflictException(`Tenant with slug "${dto.slug}" already exists`);
     }
     // Typecast to any to satisfy Prisma input typing based on Json fields
-    return this.tenantsRepo.create(dto as any);
+    const tenant = await this.tenantsRepo.create(dto as any);
+    this.logger.log(`Tenant created: ${tenant.name} (${tenant.slug})`);
+    return tenant;
   }
 
   async updateTenant(id: string, dto: UpdateTenantDto): Promise<Tenant> {
     // Ensure it exists first
     await this.getTenantById(id);
-    return this.tenantsRepo.update(id, dto as any);
+    const tenant = await this.tenantsRepo.update(id, dto as any);
+    this.logger.log(`Tenant updated: ${tenant.id}`);
+    return tenant;
   }
 
   async deleteTenant(id: string): Promise<Tenant> {

@@ -21,9 +21,9 @@ export class SendMessageDto {
   @IsString()
   tenantId: string;
 
-  @ApiPropertyOptional({ enum: ['text', 'image', 'video', 'audio', 'document'], default: 'text', required: false })
+  @ApiPropertyOptional({ enum: ['text', 'image', 'video', 'audio', 'document', 'button', 'list'], default: 'text', required: false })
   @IsOptional()
-  @IsEnum(['text', 'image', 'video', 'audio', 'document'])
+  @IsEnum(['text', 'image', 'video', 'audio', 'document', 'button', 'list'])
   messageType?: string;
 
   @ApiPropertyOptional({ example: 'https://example.com/image.jpg', description: 'Media URL for image/video/audio messages' })
@@ -35,4 +35,24 @@ export class SendMessageDto {
   @IsOptional()
   @IsString()
   fileName?: string;
+
+  @ApiPropertyOptional({ description: 'Buttons for interactive messages' })
+  @IsOptional()
+  buttons?: { id: string, text: string }[];
+
+  @ApiPropertyOptional({ description: 'Sections for list messages' })
+  @IsOptional()
+  sections?: any[];
+
+  @ApiPropertyOptional({ description: 'Title for list messages' })
+  @IsOptional()
+  title?: string;
+
+  @ApiPropertyOptional({ description: 'Button text for list messages' })
+  @IsOptional()
+  buttonText?: string;
+
+  @ApiPropertyOptional({ description: 'Footer for interactive messages' })
+  @IsOptional()
+  footer?: string;
 }

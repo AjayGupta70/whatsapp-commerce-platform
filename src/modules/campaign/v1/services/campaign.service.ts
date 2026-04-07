@@ -36,10 +36,12 @@ export class CampaignService {
   }
 
   async updateCampaignStatus(id: string, status: any): Promise<Campaign> {
+    this.logger.log(`Updating campaign ${id} status to ${status}`);
     return this.campaignRepository.updateStatus(id, status);
   }
 
   async createCampaignLog(data: any): Promise<any> {
+    this.logger.log(`Creating campaign log for campaign ${data.campaignId}`);
     return this.campaignRepository.createLog(data);
   }
 

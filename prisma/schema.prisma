@@ -59,6 +59,11 @@ enum LoginMethod {
   PASSWORD_AND_OTP
 }
 
+enum PaymentMethod {
+  ONLINE
+  OFFLINE
+}
+
 // ─── User / Customer ────────────────────────
 
 model User {
@@ -73,7 +78,8 @@ model User {
   lastSeen  DateTime? @map("last_seen")
   metadata  Json?     @default("{}")
   createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  tokenVersion Int       @default(0) @map("token_version")
 
   tenantId String @map("tenant_id")
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -284,16 +290,18 @@ model Inventory {
 // ─── Order ──────────────────────────────────
 
 model Order {
-  id          String      @id @default(uuid())
-  orderNumber String      @unique @map("order_number")
-  status      OrderStatus @default(CREATED)
-  subtotal    Decimal     @default(0) @db.Decimal(10, 2)
-  tax         Decimal     @default(0) @db.Decimal(10, 2)
-  total       Decimal     @default(0) @db.Decimal(10, 2)
-  notes       String?
-  metadata    Json?       @default("{}")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id              String        @id @default(uuid())
+  orderNumber     String        @unique @map("order_number")
+  status          OrderStatus   @default(CREATED)
+  paymentMethod   PaymentMethod @default(ONLINE) @map("payment_method")
+  shippingAddress String?       @map("shipping_address")
+  subtotal        Decimal       @default(0) @db.Decimal(10, 2)
+  tax             Decimal       @default(0) @db.Decimal(10, 2)
+  total           Decimal       @default(0) @db.Decimal(10, 2)
+  notes           String?
+  metadata        Json?         @default("{}")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

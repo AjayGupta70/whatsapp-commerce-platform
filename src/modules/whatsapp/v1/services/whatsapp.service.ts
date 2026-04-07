@@ -17,7 +17,9 @@ import { CatalogService } from '../../../catalog/v1/services/catalog.service';
 import { OrdersService } from '../../../orders/v1/services/orders.service';
 import { CampaignService } from '../../../campaign/v1/services/campaign.service';
 import { ContactService } from '../../../contact/v1/services/contact.service';
+import { PaymentsService } from '../../../payments/v1/services/payments.service';
 import { WhatsappGateway } from './whatsapp.gateway';
+import { FlowHandlerService } from './flow-handler.service';
 
 @Injectable()
 export class WhatsappService implements OnModuleInit {
@@ -35,6 +37,8 @@ export class WhatsappService implements OnModuleInit {
     private readonly campaignService: CampaignService,
     private readonly contactService: ContactService,
     private readonly whatsappGateway: WhatsappGateway,
+    private readonly flowHandler: FlowHandlerService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   onModuleInit() {
@@ -71,39 +75,71 @@ export class WhatsappService implements OnModuleInit {
       phone: from,
       direction: 'incoming',
       content: body,
-      messageType: 'text',
+      messageType: payload.messageType || 'text',
       metadata: { originalPayload: payload },
     });
 
-    // 3. Get conversation history (last 5 messages)
-    const history = await this.messageModel
-      .find({ phone: from, tenantId })
-      .sort({ createdAt: -1 })
-      .limit(5);
+    // 3. Update/Get Conversation State
+    let state = await this.stateModel.findOne({ phone: from, tenantId });
+    if (!state) {
+      state = await this.stateModel.create({ phone: from, tenantId, userId: user.id, state: 'NEW' });
+    }
 
-    // 4. Process with AI Orchestrator
-    const aiResult = await this.aiOrchestrator.processMessage(body, history, tenant);
+    // --- PAUSE CHECK (Human Handover) ---
+    if (state.state === 'PAUSED' && body.toUpperCase() !== 'RESUME') {
+      this.logger.log(`Bot is PAUSED for ${from}. Skipping response.`);
+      return;
+    }
 
-    // 5. Execute Business Logic based on Intent
-    let finalReply = aiResult.reply;
+    // 4. Handle Business Logic via Flow Handler (Static Selections)
+    let finalReply: any = null;
+    let flowResult = await this.flowHandler.handle(state, payload, tenantId);
 
-    switch (aiResult.intent) {
-      case 'GET_MENU':
+    if (flowResult && flowResult.reply) {
+      finalReply = flowResult.reply;
+      
+      // Persist next state and updated context
+      await this.stateModel.updateOne(
+        { _id: state._id },
+        { 
+          state: flowResult.nextState, 
+          context: flowResult.updatedContext || state.context,
+          lastMessageAt: new Date()
+        }
+      );
+    } else {
+      // Fallback: AI Orchestration if no static flow matches
+      const history = await this.messageModel
+        .find({ phone: from, tenantId })
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+      const aiResult = await this.aiOrchestrator.processMessage(body, history, tenant);
+      finalReply = { type: 'text', content: aiResult.reply };
+
+      // Auto-update state based on AI intent
+      if (aiResult.intent === 'GET_MENU') {
         await this.sendMenuWithImages(from, tenantId);
-        finalReply = ''; // Menu sends multiple messages
-        break;
-      case 'CREATE_ORDER':
-        // Implementation of order creation from AI entities
-        finalReply = "Order creation coming soon! 🛒";
-        break;
-      default:
-        finalReply = aiResult.reply;
+        finalReply = null;
+        await this.stateModel.updateOne({ _id: state._id }, { state: 'BROWSING' });
+      }
     }
 
-    // 6. Send Response via Baileys and Persist
+    // 5. Send Response via Baileys and Persist
     if (finalReply) {
-      await this.sendMessage({ phone: from, content: finalReply, tenantId });
+      await this.sendMessage({
+        phone: from,
+        content: finalReply.content,
+        tenantId,
+        messageType: finalReply.type || 'text',
+        buttons: finalReply.buttons,
+        sections: finalReply.sections,
+        title: finalReply.title,
+        buttonText: finalReply.buttonText,
+        footer: finalReply.footer,
+      });
     }
+    this.logger.log(`Incoming message handled from ${from} (${tenantId}).`);
   }
 
   async sendMenuWithImages(phone: string, tenantId: string): Promise<void> {
@@ -156,7 +192,27 @@ export class WhatsappService implements OnModuleInit {
             dto.phone,
             dto.mediaUrl,
             dto.fileName || 'document',
-            dto.content
+            dto.content,
+          );
+          break;
+
+        case 'button':
+          messageId = await this.baileysClient.sendButtonsMessage(
+            dto.phone,
+            dto.content,
+            dto.buttons || [],
+            dto.footer,
+          );
+          break;
+
+        case 'list':
+          messageId = await this.baileysClient.sendListMessage(
+            dto.phone,
+            dto.title || '',
+            dto.content,
+            dto.buttonText || 'Open Menu',
+            dto.sections || [],
+            dto.footer,
           );
           break;
 
@@ -189,6 +245,7 @@ export class WhatsappService implements OnModuleInit {
         timestamp: new Date(),
       });
 
+      this.logger.log(`Successfully sent ${dto.messageType} message to ${dto.phone} on tenant ${dto.tenantId}`);
       return messageId;
     } catch (error) {
       this.logger.error(`Failed to send ${dto.messageType} message to ${dto.phone}:`, error);
@@ -235,6 +292,7 @@ export class WhatsappService implements OnModuleInit {
     }
 
     // 3. Update campaign status to PROCESSING
+    this.logger.log(`Campaign ${campaignId} status changed to PROCESSING`);
     await this.campaignService.updateCampaignStatus(campaignId, 'PROCESSING');
 
     // 4. Send messages with throttling (1 message per second to avoid bans)

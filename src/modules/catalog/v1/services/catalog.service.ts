@@ -2,11 +2,12 @@
 // Catalog Service — Dynamic Menu Generation
 // ============================================
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CatalogRepository } from '../repositories/catalog.repository';
 
 @Injectable()
 export class CatalogService {
+  private readonly logger = new Logger(CatalogService.name);
   constructor(private readonly catalogRepo: CatalogRepository) {}
 
   /**
@@ -135,7 +136,9 @@ export class CatalogService {
   }
 
   async createProduct(data: any) {
-    return this.catalogRepo.createProduct(data);
+    const product = await this.catalogRepo.createProduct(data);
+    this.logger.log(`New product created: ${product.name} with ID ${product.id}`);
+    return product;
   }
 
   async getProducts(tenantId: string) {
@@ -147,6 +150,38 @@ export class CatalogService {
   }
 
   async createCategory(data: any) {
-    return this.catalogRepo.createCategory(data);
+    const category = await this.catalogRepo.createCategory(data);
+    this.logger.log(`New category created: ${category.name} with ID ${category.id}`);
+    return category;
+  }
+
+  /**
+   * Get categories as segments for a List Message
+   */
+  async getInteractiveCategoryList(tenantId: string): Promise<any[]> {
+    const categories = await this.catalogRepo.findCategoriesByTenant(tenantId);
+    return categories.map(cat => ({
+      title: cat.name,
+      rows: [
+        { id: `CAT_${cat.id}`, title: `View ${cat.name}`, description: `Browse items in ${cat.name}` }
+      ]
+    }));
+  }
+
+  /**
+   * Get products in a category for a List Message
+   */
+  async getInteractiveProductList(categoryId: string, tenantId: string): Promise<any[]> {
+     const products = await this.catalogRepo.findProductsByTenant(tenantId);
+     const filtered = products.filter(p => p.categoryId === categoryId);
+     
+     return [{
+       title: 'Products',
+       rows: filtered.map(p => ({
+         id: `PROD_${p.id}`,
+         title: p.name,
+         description: `₹${p.price} - ${p.description || ''}`
+       }))
+     }];
   }
 }
