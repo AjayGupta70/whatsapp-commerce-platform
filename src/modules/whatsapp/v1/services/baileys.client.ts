@@ -159,8 +159,24 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
             this.whatsappGateway.emitConnectionStatus('reconnecting', false);
             setTimeout(() => this.connect(), 5000);
           } else {
-            this.logger.error('Max reconnect attempts reached, stopping retries');
+            this.logger.error('Max reconnect attempts reached, clearing session and attempting fresh connection to generate new QR...');
             this.whatsappGateway.emitConnectionStatus('failed', false);
+
+            // Auto-heal: If we can't reconnect, the session is likely dead.
+            // Clear it and try one more time after a delay to show a fresh QR.
+            await this.disconnect();
+            try {
+              if (fs.existsSync(this.sessionPath)) {
+                fs.rmSync(this.sessionPath, { recursive: true, force: true });
+                this.logger.log('Session cleared for auto-recovery.');
+              }
+            } catch (cleanupError) {
+              this.logger.error('Error clearing session during recovery:', cleanupError);
+            }
+
+            this.reconnectAttempts = 0;
+            // Wait 10 seconds before trying for a fresh QR
+            setTimeout(() => this.connect(), 10000);
           }
         } else {
           this.logger.error('Logged out, clearing session and requesting new QR login');

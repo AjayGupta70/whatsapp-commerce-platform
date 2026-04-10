@@ -233,14 +233,18 @@ export class AuthService {
       await this.clearOtpState(key);
       await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: user.id });
 
-      if (provider === 'phone' && user.phone && user.tenantId) {
-        await this.whatsappService.sendMessage({
-          phone: user.phone,
-          tenantId: user.tenantId,
-          content: `Your second factor verification code is *${code}*. It expires in 5 minutes.`,
-        });
-      } else if (user.email) {
-        await this.mailService.sendLoginCode(user.email, code, user.name);
+      try {
+        if (provider === 'phone' && user.phone && user.tenantId) {
+          await this.whatsappService.sendMessage({
+            phone: user.phone,
+            tenantId: user.tenantId,
+            content: `Your second factor verification code is *${code}*. It expires in 5 minutes.`,
+          });
+        } else if (user.email) {
+          await this.mailService.sendLoginCode(user.email, code, user.name);
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to send 2FA OTP to ${normalized}: ${error.message}`);
       }
 
       return {
@@ -295,11 +299,15 @@ export class AuthService {
     const code = this.generateOtpCode();
     await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: '' });
 
-    await this.whatsappService.sendMessage({
-      phone,
-      tenantId,
-      content: `Welcome! Your verification code is *${code}*. It expires in 5 minutes.`,
-    });
+    try {
+      await this.whatsappService.sendMessage({
+        phone,
+        tenantId,
+        content: `Welcome! Your verification code is *${code}*. It expires in 5 minutes.`,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to send signup OTP to ${phone}: ${error.message}`);
+    }
 
     this.logger.log(`Signup OTP sent to ${phone}`);
     return { message: 'OTP sent to your WhatsApp. Please verify to complete registration.' };
@@ -406,14 +414,18 @@ export class AuthService {
     await this.clearOtpState(key);
     await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: user.id });
 
-    if (provider === 'phone') {
-      await this.whatsappService.sendMessage({
-        phone: normalized,
-        tenantId: dto.tenantId!,
-        content: `Your admin login OTP is *${code}*. It expires in 5 minutes.`,
-      });
-    } else {
-      await this.mailService.sendLoginCode(identifier, code, user.name || undefined);
+    try {
+      if (provider === 'phone') {
+        await this.whatsappService.sendMessage({
+          phone: normalized,
+          tenantId: dto.tenantId!,
+          content: `Your admin login OTP is *${code}*. It expires in 5 minutes.`,
+        });
+      } else {
+        await this.mailService.sendLoginCode(identifier, code, user.name || undefined);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to send admin login OTP to ${normalized}: ${error.message}`);
     }
 
     return { message: 'OTP sent successfully.' };
@@ -474,11 +486,15 @@ export class AuthService {
     const code = this.generateOtpCode();
     await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: user.id });
 
-    await this.whatsappService.sendMessage({
-      phone: normalizedPhone,
-      tenantId,
-      content: `Your login code is *${code}*. It expires in 5 minutes.`,
-    });
+    try {
+      await this.whatsappService.sendMessage({
+        phone: normalizedPhone,
+        tenantId,
+        content: `Your login code is *${code}*. It expires in 5 minutes.`,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to send customer login OTP to ${normalizedPhone}: ${error.message}`);
+    }
 
     return { message: 'OTP sent to your WhatsApp successfully.' };
   }
@@ -530,14 +546,18 @@ export class AuthService {
     const code = this.generateOtpCode();
     await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: user.id });
 
-    if (provider === 'phone') {
-      await this.whatsappService.sendMessage({
-        phone: normalized,
-        tenantId,
-        content: `Your new OTP is *${code}*. It expires in 5 minutes.`,
-      });
-    } else {
-      await this.mailService.sendLoginCode(normalized, code, (user as any).name);
+    try {
+      if (provider === 'phone') {
+        await this.whatsappService.sendMessage({
+          phone: normalized,
+          tenantId,
+          content: `Your new OTP is *${code}*. It expires in 5 minutes.`,
+        });
+      } else {
+        await this.mailService.sendLoginCode(normalized, code, (user as any).name);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to resend OTP to ${normalized}: ${error.message}`);
     }
 
     return { message: 'A new OTP has been sent.' };
@@ -617,14 +637,18 @@ export class AuthService {
     const code = this.generateOtpCode();
     await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: user.id });
 
-    if (provider === 'phone') {
-      await this.whatsappService.sendMessage({
-        phone: normalized,
-        tenantId: dto.tenantId,
-        content: `Your password reset OTP is *${code}*. It expires in 5 minutes. If you did not request this, ignore it.`,
-      });
-    } else if (user.email) {
-      await this.mailService.sendLoginCode(user.email, code, (user as any).name);
+    try {
+      if (provider === 'phone') {
+        await this.whatsappService.sendMessage({
+          phone: normalized,
+          tenantId: dto.tenantId,
+          content: `Your password reset OTP is *${code}*. It expires in 5 minutes. If you did not request this, ignore it.`,
+        });
+      } else if (user.email) {
+        await this.mailService.sendLoginCode(user.email, code, (user as any).name);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to send forgot password OTP to ${normalized}: ${error.message}`);
     }
 
     this.logger.log(`Forgot password OTP initiated for ${normalized} (${provider})`);

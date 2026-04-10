@@ -45,6 +45,10 @@ import { ResendOtpDto } from './dto/resend-otp.dto';
 import { AuthLoginResponseDto } from './dto/auth-login-response.dto';
 import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { MessageResponseDto } from './dto/message-response.dto';
+import { VerifySignupOtpDto } from './dto/verify-signup-otp.dto';
+import { VerifyForgotPasswordOtpDto } from './dto/verify-forgot-password-otp.dto';
+import { ValidateTokenDto } from './dto/validate-token.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { IsEnum, IsBoolean, IsOptional } from 'class-validator';
 import { ApiPropertyOptional as ApiPropOpt } from '@nestjs/swagger';
 
@@ -109,9 +113,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify signup OTP and create the user account' })
   @ApiResponse({ status: 201, description: 'Account created, returns token pair', type: AuthLoginResponseDto })
   async verifySignupOtp(
-    @Body() body: { phone: string; tenantId: string; otp: string },
+    @Body() dto: VerifySignupOtpDto,
   ) {
-    return this.authService.verifySignupOtp(body.phone, body.tenantId, body.otp);
+    return this.authService.verifySignupOtp(dto.phone, dto.tenantId, dto.otp);
   }
 
   // ─── Admin Login ─────────────────────────────
@@ -177,13 +181,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify forgot-password OTP — returns a short-lived reset token' })
   @ApiResponse({ status: 200, description: 'OTP verified, reset token returned' })
   async verifyForgotPasswordOtp(
-    @Body() body: { identifier: string; tenantId: string; otp: string; provider?: 'phone' | 'email' },
+    @Body() dto: VerifyForgotPasswordOtpDto,
   ) {
     return this.authService.verifyForgotPasswordOtp(
-      body.identifier,
-      body.tenantId,
-      body.otp,
-      body.provider,
+      dto.identifier,
+      dto.tenantId,
+      dto.otp,
+      dto.provider,
     );
   }
 
@@ -191,9 +195,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Set new password using the reset token from forgot-password flow' })
   @ApiResponse({ status: 200, description: 'Password reset successfully', type: MessageResponseDto })
-  async resetPassword(@Body() body: { resetToken: string } & SetPasswordDto) {
-    const { resetToken, ...dto } = body;
-    return this.authService.resetPasswordWithToken(resetToken, dto as SetPasswordDto);
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    const { resetToken, ...setPasswordDto } = dto;
+    return this.authService.resetPasswordWithToken(resetToken, setPasswordDto);
   }
 
   // ─── Set Password (first-time / after signup) ─
@@ -259,9 +263,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Validate a JWT access token' })
   @ApiResponse({ status: 200, description: 'Token is valid' })
-  async validateToken(@Body() body: { token: string }) {
+  async validateToken(@Body() dto: ValidateTokenDto) {
     try {
-      const decoded = await this.authService.validateJwtToken(body.token);
+      const decoded = await this.authService.validateJwtToken(dto.token);
       return { valid: !!decoded, message: 'Token is valid' };
     } catch {
       throw new BadRequestException('Invalid or expired token.');
