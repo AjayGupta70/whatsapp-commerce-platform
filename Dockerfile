@@ -40,8 +40,8 @@ COPY --from=builder /app/public ./public
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup && \
     adduser -S appuser -u 1001 -G appgroup && \
-    mkdir -p /app/sessions && \
-    chown -R appuser:appgroup /app/sessions
+    mkdir -p /app/sessions /app/public/uploads && \
+    chown -R appuser:appgroup /app/sessions /app/public/uploads
 
 USER appuser
 

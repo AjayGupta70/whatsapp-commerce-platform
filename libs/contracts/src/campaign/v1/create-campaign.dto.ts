@@ -2,7 +2,7 @@
 // Create Campaign DTO
 // ============================================
 
-import { IsString, IsNotEmpty, IsEnum, IsOptional, IsDateString, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum CampaignType {
@@ -32,10 +32,15 @@ export class CreateCampaignDto {
   @IsOptional()
   scheduledAt?: string;
 
-  @ApiProperty({ description: 'Tenant ID', example: 'uuid-v4' })
-  @IsUUID()
+  @ApiProperty({ description: 'Tenant ID', example: 'COMP_A1b2C3d4' })
+  @IsString()
   @IsNotEmpty()
   tenantId: string;
+
+  @ApiPropertyOptional({ description: 'URL of the media to send with the campaign' })
+  @IsString()
+  @IsOptional()
+  mediaUrl?: string;
 }
 
 export class CampaignResponseDto {

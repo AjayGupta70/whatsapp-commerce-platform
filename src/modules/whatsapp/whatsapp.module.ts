@@ -7,6 +7,7 @@ import { WhatsappService } from './v1/services/whatsapp.service';
 import { WhatsappController } from './v1/controllers/whatsapp.controller';
 import { BaileysClient } from './v1/services/baileys.client';
 import { WhatsappGateway } from './v1/services/whatsapp.gateway';
+import { WhatsappRmqController } from './v1/controllers/whatsapp-rmq.controller';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Message, MessageSchema } from '../../database/mongodb/schemas/message.schema';
 import { ConversationState, ConversationStateSchema } from '../../database/mongodb/schemas/conversation-state.schema';
@@ -38,7 +39,7 @@ import { FlowHandlerService } from './v1/services/flow-handler.service';
     ContactModule,
     forwardRef(() => PaymentsModule),
   ],
-  controllers: [WhatsappController],
+  controllers: [WhatsappController, WhatsappRmqController],
   providers: [WhatsappService, BaileysClient, WhatsappGateway, MessageQueueService, FlowHandlerService],
   exports: [WhatsappService],
 })

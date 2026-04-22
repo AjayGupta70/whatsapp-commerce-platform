@@ -1,7 +1,7 @@
 // ============================================
 // Campaign Controller
 // ============================================
-
+// ============================================
 import { Controller, Post, Get, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CampaignService } from '../services/campaign.service';
@@ -28,5 +28,11 @@ export class CampaignController {
   @ApiOperation({ summary: 'Get campaign details by ID' })
   async getCampaignById(@Param('id') id: string) {
     return this.campaignService.getCampaignById(id);
+  }
+
+  @Post(':id/send')
+  @ApiOperation({ summary: 'Queue campaign for processing and sending' })
+  async sendCampaign(@Param('id') id: string, @Body('tenantId') tenantId: string) {
+    return this.campaignService.startBulkCampaign(id, tenantId);
   }
 }

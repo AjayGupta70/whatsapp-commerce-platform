@@ -58,8 +58,9 @@ export class WhatsappService implements OnModuleInit {
 
     // Emit to WebSocket for real-time dashboard updates
     this.whatsappGateway.emitIncomingMessage({
-      from,
-      body,
+      phone: from,
+      content: body,
+      direction: 'incoming',
       tenantId,
       timestamp: new Date(),
     });
@@ -175,8 +176,14 @@ export class WhatsappService implements OnModuleInit {
   async sendMessage(dto: SendMessageDto) {
     try {
       let messageId: string | null = null;
+      let effectiveType = dto.messageType || 'text';
 
-      switch (dto.messageType) {
+      // Auto-detect image type if mediaUrl is present
+      if (dto.mediaUrl && (effectiveType === 'text' || !effectiveType)) {
+        effectiveType = 'image';
+      }
+
+      switch (effectiveType) {
         case 'image':
           if (!dto.mediaUrl) {
             throw new Error('mediaUrl required for image messages');
@@ -227,7 +234,7 @@ export class WhatsappService implements OnModuleInit {
         phone: dto.phone,
         direction: 'outgoing',
         content: dto.content,
-        messageType: dto.messageType || 'text',
+        messageType: effectiveType || 'text',
         whatsappMessageId: messageId || undefined,
         metadata: {
           mediaUrl: dto.mediaUrl,
@@ -238,9 +245,10 @@ export class WhatsappService implements OnModuleInit {
 
       // Emit to WebSocket for real-time dashboard updates
       this.whatsappGateway.emitOutgoingMessage({
-        to: dto.phone,
+        phone: dto.phone,
         content: dto.content,
-        messageType: dto.messageType || 'text',
+        direction: 'outgoing',
+        messageType: effectiveType || 'text',
         tenantId: dto.tenantId,
         timestamp: new Date(),
       });
@@ -259,6 +267,39 @@ export class WhatsappService implements OnModuleInit {
       .sort({ createdAt: -1 })
       .limit(limit);
   }
+
+  async getConversations(tenantId: string) {
+    this.logger.log(`Fetching active conversations for tenant ${tenantId}`);
+    
+    // Aggregate to find unique phones and their latest message
+    return this.messageModel.aggregate([
+      { $match: { tenantId } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$phone",
+          lastMessage: { $first: "$content" },
+          direction: { $first: "$direction" },
+          timestamp: { $first: "$createdAt" },
+          messageType: { $first: "$messageType" },
+          totalMessages: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          phone: "$_id",
+          lastMessage: 1,
+          direction: 1,
+          timestamp: 1,
+          messageType: 1,
+          totalMessages: 1,
+          _id: 0
+        }
+      },
+      { $sort: { timestamp: -1 } }
+    ]);
+  }
+
 
   async getConnectionStatus() {
     const status = this.baileysClient.getStatus();

@@ -75,6 +75,14 @@ async function seedUsersAndTenants() {
       metadata: {}
     },
     {
+      phone: '+917619609769',
+      name: 'Ajay Super Admin',
+      email: 'ajay.admin@goldencafe.com',
+      tenantId: 'golden-cafe',
+      role: UserRole.SUPER_ADMIN,
+      metadata: {}
+    },
+    {
       phone: '+914444444444',
       name: 'Deleted User',
       email: 'deleted@example.com',

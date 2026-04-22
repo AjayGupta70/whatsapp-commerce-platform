@@ -55,6 +55,13 @@ export class MessageQueueService implements OnModuleInit {
   }
 
   /**
+   * Queue an individual campaign message
+   */
+  async queueCampaignMessage(messageData: { campaignId: string, tenantId: string, contactId: string, phone: string, content: string }): Promise<void> {
+    await this.sendMessageToQueue('whatsapp.campaign.send', messageData);
+  }
+
+  /**
    * Queue AI processing
    */
   async queueAIProcessing(messageData: any): Promise<void> {

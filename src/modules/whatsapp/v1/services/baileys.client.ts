@@ -12,6 +12,7 @@ import {
   makeCacheableSignalKeyStore,
   Browsers,
   fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
   WAMessage,
   WASocket,
   DEFAULT_CONNECTION_CONFIG,
@@ -31,7 +32,7 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
   private isConnected: boolean = false;
   private isConnecting: boolean = false;
   private reconnectAttempts: number = 0;
-  private readonly maxReconnectAttempts: number = 5;
+  private readonly maxReconnectAttempts: number = 10;
   private messageCallbacks: ((msg: any) => Promise<void>)[] = [];
   private store: any;
   private readonly sendTimeoutMs: number = 30000;
@@ -56,7 +57,11 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
     private readonly whatsappGateway: WhatsappGateway,
   ) {
     this.sessionPath = path.join(process.cwd(), 'sessions', 'whatsapp');
+    // Default tenant for single-tenant / testing mode
+    this.defaultTenantId = this.configService.get<string>('whatsapp.defaultTenantId') || 'golden-cafe';
   }
+
+  private defaultTenantId: string;
 
   async onModuleInit(): Promise<void> {
     this.logger.log('Initializing Baileys WhatsApp client...');
@@ -85,29 +90,43 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
         fs.mkdirSync(this.sessionPath, { recursive: true });
       }
 
-      // Get latest Baileys version
-      const { version } = await fetchLatestBaileysVersion();
+      // Fetch the LIVE WhatsApp Web version from WhatsApp's servers.
+      // This is critical — using an outdated/cached version causes
+      // "Try Again Later" errors on QR scan. fetchLatestBaileysVersion()
+      // only returns a bundled version which may be outdated.
+      let version: [number, number, number];
+      try {
+        const result = await fetchLatestWaWebVersion({});
+        version = result.version;
+        this.logger.log(`✅ Using live WhatsApp Web version: ${version.join('.')}`);
+      } catch (e) {
+        this.logger.warn('Could not fetch live WA version, falling back to Baileys bundled version');
+        const result = await fetchLatestBaileysVersion();
+        version = result.version;
+      }
 
       // Load or create auth state
       const { state, saveCreds } = await useMultiFileAuthState(this.sessionPath);
 
-      // Create WhatsApp socket with optimized config for authentication
+      // Create WhatsApp socket
       this.sock = makeWASocket({
         version,
         logger: DEFAULT_CONNECTION_CONFIG.logger,
         printQRInTerminal: false,
         auth: state,
-        browser: Browsers.ubuntu('Chrome'),
+        // Ubuntu Desktop fingerprint is very stable and less suspicious than macOS/Chrome for bots
+        browser: Browsers.ubuntu('Desktop'),
         generateHighQualityLinkPreview: true,
-        // Add these settings for better authentication compatibility
-        qrTimeout: 120000, // 120 seconds for QR timeout (increased for scanning)
+        syncFullHistory: false, // CRITICAL: Reduces initial handshake load
+        shouldSyncHistoryMessage: () => false, // Further reduces initial noise
+        qrTimeout: 120000, // Increase for user convenience (2 mins)
         defaultQueryTimeoutMs: 60000,
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 30000,
-        retryRequestDelayMs: 5000,
-        maxMsgRetryCount: 3,
+        keepAliveIntervalMs: 25000,
+        retryRequestDelayMs: 3000,
+        maxMsgRetryCount: 5,
         emitOwnEvents: false,
-        markOnlineOnConnect: true,
+        markOnlineOnConnect: false, // Don't go online immediately after pairing
       });
 
       // Save credentials on authentication
@@ -137,6 +156,9 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
 
       if (qr) {
         this.qrCode = qr;
+        // Reset reconnect counter every time a new QR is shown so the post-pairing
+        // restart (error 515) gets a fresh set of attempts and doesn't delete the session.
+        this.reconnectAttempts = 0;
         this.logger.log('✅ QR Code generated! Scan from the web dashboard:');
         this.logger.log('🌐 Open: http://localhost:3000/');
         this.logger.log('⏱️ QR Code expires in 120 seconds - Scan quickly!');
@@ -147,10 +169,30 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
 
       if (connection === 'close') {
         this.isConnected = false;
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+        
+        // 401: Unauthorized, 403: Forbidden, loggedOut: User explicitly logged out
+        const isCorruptOrLoggedOut = 
+          statusCode === DisconnectReason.loggedOut || 
+          statusCode === 401 || 
+          statusCode === 403;
+          
+        const shouldReconnect = !isCorruptOrLoggedOut;
 
-        this.logger.warn('WhatsApp connection closed:', lastDisconnect?.error);
+        this.logger.warn(`WhatsApp connection closed. Status code: ${statusCode}`);
         this.whatsappGateway.emitConnectionStatus('disconnected', false);
+
+        // ─── Error 515: Normal post-pairing restart ───────────────────────────
+        // WhatsApp ALWAYS sends a 515 stream error right after a QR pairing to
+        // restart the authenticated session. This is NOT a failure — do a clean
+        // reconnect immediately without touching the session files or burning a
+        // retry count.
+        if (statusCode === 515) {
+          this.logger.log('🔄 Post-pairing restart detected (515). Reconnecting with saved session...');
+          this.whatsappGateway.emitConnectionStatus('reconnecting', false);
+          setTimeout(() => this.connect(), 2000);
+          return;
+        }
 
         if (shouldReconnect) {
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -159,11 +201,9 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
             this.whatsappGateway.emitConnectionStatus('reconnecting', false);
             setTimeout(() => this.connect(), 5000);
           } else {
-            this.logger.error('Max reconnect attempts reached, clearing session and attempting fresh connection to generate new QR...');
+            this.logger.error('Max reconnect attempts reached, clearing session for fresh QR...');
             this.whatsappGateway.emitConnectionStatus('failed', false);
 
-            // Auto-heal: If we can't reconnect, the session is likely dead.
-            // Clear it and try one more time after a delay to show a fresh QR.
             await this.disconnect();
             try {
               if (fs.existsSync(this.sessionPath)) {
@@ -175,11 +215,10 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
             }
 
             this.reconnectAttempts = 0;
-            // Wait 10 seconds before trying for a fresh QR
             setTimeout(() => this.connect(), 10000);
           }
         } else {
-          this.logger.error('Logged out, clearing session and requesting new QR login');
+          this.logger.error(`Logged out or corrupted session (status ${statusCode}), clearing session and requesting new QR login`);
           this.whatsappGateway.emitConnectionStatus('logged_out', false);
 
           await this.disconnect();
@@ -188,7 +227,7 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
               fs.rmSync(this.sessionPath, { recursive: true, force: true });
             }
           } catch (cleanupError) {
-            this.logger.error('Error clearing WhatsApp session after logout:', cleanupError);
+            this.logger.error('Error clearing WhatsApp session after logout/corruption:', cleanupError);
           }
 
           this.reconnectAttempts = 0;
@@ -202,6 +241,7 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
         this.whatsappGateway.emitConnectionStatus('connected', true, this.sock?.user);
       }
     });
+
 
     // Messages
     this.sock.ev.on('messages.upsert', async (m) => {
@@ -304,6 +344,11 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
       messageType,
       timestamp: msg.messageTimestamp,
       originalMessage: msg,
+      // ─── Tenant routing ─────────────────────────────
+      // In single-tenant / dev mode we stamp every message with the
+      // DEFAULT_TENANT_ID from config. In multi-tenant mode this should
+      // be resolved from the whatsapp number that received the message.
+      tenantId: this.defaultTenantId,
     };
   }
 
@@ -344,11 +389,20 @@ export class BaileysClient implements OnModuleInit, OnModuleDestroy {
 
     try {
       const jid = this.formatPhoneToJid(phone);
+      
+      // Resolve local paths (MinIO Ready logic)
+      let imageSource: any = { url: imageUrl };
+      if (imageUrl.startsWith('/')) {
+        const localPath = path.join(process.cwd(), 'public', imageUrl);
+        if (fs.existsSync(localPath)) {
+          imageSource = fs.readFileSync(localPath);
+        }
+      }
 
       this.logger.log(`Sending WhatsApp image message to ${jid}`);
       const result = await this.executeWithTimeout(
         this.sock.sendMessage(jid, {
-          image: { url: imageUrl },
+          image: imageSource,
           caption: caption || '',
         }),
         this.sendTimeoutMs,

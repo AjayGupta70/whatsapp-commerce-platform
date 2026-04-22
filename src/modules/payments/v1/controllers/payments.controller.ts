@@ -26,8 +26,8 @@ export class PaymentsController {
   ) {
     if (!signature) throw new BadRequestException('No signature');
     
-    // In Fastify, use raw body. Need to ensure it's available.
-    const rawBody = JSON.stringify(req.body); 
+    // In Fastify with raw-body plugin, use req.rawBody
+    const rawBody = req.rawBody || JSON.stringify(req.body); 
     await this.paymentsService.handleWebhook(signature, rawBody);
     return { status: 'ok' };
   }

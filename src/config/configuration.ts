@@ -73,5 +73,17 @@ export default () => ({
   // WhatsApp — Baileys
   whatsapp: {
     sessionPath: process.env.WHATSAPP_SESSION_PATH || './sessions',
+    defaultTenantId: process.env.DEFAULT_TENANT_ID || 'golden-cafe',
+  },
+
+  // Storage / MinIO / S3
+  storage: {
+    endpoint: process.env.STORAGE_ENDPOINT || '127.0.0.1',
+    port: parseInt(process.env.STORAGE_PORT || '9000', 10) || 9000,
+    useSSL: process.env.STORAGE_USE_SSL === 'true',
+    accessKey: process.env.STORAGE_ACCESS_KEY || 'minioadmin',
+    secretKey: process.env.STORAGE_SECRET_KEY || 'minioadmin',
+    bucketName: process.env.STORAGE_BUCKET_NAME || 'whatsapp-media',
+    publicUrl: process.env.STORAGE_PUBLIC_URL || 'http://localhost:9000',
   },
 });

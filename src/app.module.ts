@@ -3,8 +3,9 @@
 // ============================================
 
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import configuration from './config/configuration';
 
 // ─── Logging ──────────────────────────────
@@ -20,6 +21,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RabbitMQModule } from './microservices/rabbitmq-service/rabbitmq.module';
 import { AIModule } from './modules/ai/ai.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -45,6 +47,19 @@ import { PaymentsModule } from './modules/payments/payments.module';
       },
     ]),
 
+    // Queues
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('redis.host'),
+          port: configService.get<number>('redis.port'),
+          password: configService.get<string>('redis.password'),
+        },
+      }),
+    }),
+
     // Logging
     CommonLoggerModule,
 
@@ -63,6 +78,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     OrdersModule,
     PaymentsModule,
     AIModule,
+    StorageModule,
     WhatsappModule,
     AuthModule,
     RabbitMQModule,

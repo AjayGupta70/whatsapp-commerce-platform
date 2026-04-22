@@ -5,6 +5,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@database/postgres/prisma/prisma.service';
 import { Tenant, Prisma } from '@prisma/client';
+import { generateId } from '../../../../common/utils/id-generator';
 
 @Injectable()
 export class TenantsRepository {
@@ -28,6 +29,9 @@ export class TenantsRepository {
    * Create new tenant
    */
   async create(data: Prisma.TenantCreateInput): Promise<Tenant> {
+    if (!data.id) {
+      data.id = generateId('COMP');
+    }
     return this.prisma.tenant.create({ data });
   }
 

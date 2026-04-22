@@ -12,6 +12,7 @@ import {
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger, LoggerErrorInterceptor } from 'nestjs-pino';
+import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { AppModule } from './app.module';
 
 // ─── Common Pipes/Filters/Interceptors ──────
@@ -49,6 +50,14 @@ async function bootstrap() {
   
   // File Upload Support for Fastify
   await app.register(require('@fastify/multipart'));
+
+  // Raw Body Support for Webhooks (Razorpay)
+  await app.register(require('fastify-raw-body'), {
+    field: 'rawBody', // req.rawBody
+    global: true,
+    encoding: 'utf8',
+    runFirst: true,
+  });
 
   // Global Validation
   app.useGlobalPipes(
@@ -91,10 +100,26 @@ async function bootstrap() {
 
   const port = process.env.APP_PORT || 3000;
   await app.listen(port, '0.0.0.0'); // Allow connections from all hosts (Docker/External)
+
+  // Start RabbitMQ Microservice Consumer
+  const rmqUrl = process.env.RABBITMQ_URL || 'amqp://admin:password@rabbitmq:5672';
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: {
+      urls: [rmqUrl],
+      queue: 'whatsapp_queue',
+      queueOptions: {
+        durable: true,
+      },
+      noAck: false, // Ensure manual or framework auto-ack
+    },
+  });
+  await app.startAllMicroservices();
   
   const startLogger = app.get(Logger);
   startLogger.log(`🚀 Application is running on: http://localhost:${port}/api/v1`);
   startLogger.log(`📜 Swagger Documentation: http://localhost:${port}/docs`);
+  startLogger.log(`🐇 RabbitMQ Microservices connected`);
 }
 
 bootstrap();

@@ -411,6 +411,10 @@ export class AuthService {
     }
 
     const code = this.generateOtpCode();
+    
+    // DEV MODE HELPER: Print OTP to console so you can login without real WhatsApp/Email
+    this.logger.log(`⚠️ DEV OTP CONSOLE: Your Admin Login Code is [ ${code} ]`);
+
     await this.clearOtpState(key);
     await this.storeOtp(key, { code, expiresAt: Date.now() + OTP_TTL_SECONDS * 1000, userId: user.id });
 

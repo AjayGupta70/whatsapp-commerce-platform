@@ -33,6 +33,14 @@ export class WhatsappController {
     return this.whatsappService.getChatHistory(tenantId, phone, limit);
   }
 
+  @Get('conversations/:tenantId')
+  @ApiOperation({ summary: 'Get active conversations for a tenant' })
+  @ApiParam({ name: 'tenantId', description: 'Tenant ID' })
+  async getConversations(@Param('tenantId') tenantId: string) {
+    return this.whatsappService.getConversations(tenantId);
+  }
+
+
   @Post('test-send')
   @ApiOperation({ summary: 'Test sending a WhatsApp message' })
   async testSendMessage(@Body() dto: SendMessageDto) {
